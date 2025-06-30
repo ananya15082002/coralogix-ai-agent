@@ -3,7 +3,7 @@ import hashlib
 import json
 
 def extract_from_user_data(user_data_str):
-    """Helper to parse userData JSON safely if it’s a string."""
+    """Safely parse userData if it's a stringified JSON."""
     try:
         return json.loads(user_data_str)
     except (json.JSONDecodeError, TypeError):
@@ -15,25 +15,53 @@ def parse_log_lines(logs: list):
     for log in logs:
         source = log.get("_source", log)
         user_data = source.get("userData", {})
-        
-        # Parse userData if it's a JSON string
+
+        # Parse if userData is string
         if isinstance(user_data, str):
             user_data = extract_from_user_data(user_data)
 
-        # Priority: direct > userData > nested
-        trace_id = source.get("traceId") or user_data.get("traceId") or "N/A"
-        span_id = source.get("spanId") or user_data.get("spanId") or "N/A"
-        timestamp = source.get("timestamp") or user_data.get("timestamp") or source.get("time") or user_data.get("time") or "N/A"
+        # Combine all possible nested paths to extract values
+        trace_id = source.get("traceId") or user_data.get("traceId") or source.get("trace_id") or "N/A"
+        span_id = source.get("spanId") or user_data.get("spanId") or source.get("span_id") or "N/A"
+        timestamp = (
+            source.get("timestamp") or source.get("time") or
+            user_data.get("timestamp") or user_data.get("time") or
+            "N/A"
+        )
         severity = source.get("severity") or user_data.get("severity") or "N/A"
         application = source.get("application") or user_data.get("app_name") or "N/A"
         namespace = source.get("namespace") or user_data.get("namespace") or "N/A"
-        pod_name = source.get("pod_name") or user_data.get("kubernetes", {}).get("pod_name") or "N/A"
-        container_name = source.get("container_name") or user_data.get("kubernetes", {}).get("container_name") or "N/A"
-        host = source.get("host") or user_data.get("kubernetes", {}).get("Host") or "N/A"
-        message = source.get("message") or user_data.get("message") or "N/A"
+        pod_name = (
+            source.get("pod_name") or
+            user_data.get("kubernetes", {}).get("pod_name") or
+            source.get("kubernetes", {}).get("pod_name") or
+            "N/A"
+        )
+        container_name = (
+            source.get("container_name") or
+            user_data.get("kubernetes", {}).get("container_name") or
+            source.get("kubernetes", {}).get("container_name") or
+            "N/A"
+        )
+        host = (
+            source.get("host") or
+            user_data.get("kubernetes", {}).get("host") or
+            source.get("kubernetes", {}).get("host") or
+            "N/A"
+        )
 
-        # Hash for deduplication
-        log_hash = hashlib.md5(f"{timestamp}_{message}".encode()).hexdigest()
+        # Improved message logic
+        message = (
+            source.get("message") or
+            source.get("log") or
+            user_data.get("message") or
+            user_data.get("log") or
+            str(source.get("error")) or "N/A"
+        )
+
+        # Build a stronger deduplication key
+        dedup_key = f"{trace_id}_{span_id}_{timestamp}_{message}"
+        log_hash = hashlib.md5(dedup_key.encode()).hexdigest()
 
         parsed_data.append({
             "trace_id": trace_id,
@@ -45,17 +73,18 @@ def parse_log_lines(logs: list):
             "pod_name": pod_name,
             "container_name": container_name,
             "host": host,
-            "message": message,
+            "message": message.strip(),
             "hash": log_hash
         })
 
+    # Create DataFrame
     df = pd.DataFrame(parsed_data)
 
-    # Drop duplicate entries based on hash
+    # Remove exact duplicates
     df.drop_duplicates(subset="hash", inplace=True)
     df.drop(columns=["hash"], inplace=True)
 
-    # Convert timestamp to datetime for visualization
+    # Convert timestamp to datetime
     if not df.empty and "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
