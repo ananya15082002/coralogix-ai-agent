@@ -3,5 +3,5 @@ requests
 pandas
 openai
 transformers
-sentence-transformers
 scikit-learn
+sentencepiece==0.1.99
