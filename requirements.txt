@@ -1,8 +1,7 @@
 streamlit
-pandas
 requests
-python-dotenv
+pandas
+openai
 transformers
-torch
-sentencepiece
-ndjson
+sentence-transformers
+scikit-learn
