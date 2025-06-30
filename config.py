@@ -1,8 +1,5 @@
-import os
-from dotenv import load_dotenv
+import streamlit as st
 
-load_dotenv()
-
-API_KEY = os.getenv("CORALOGIX_API_KEY")
-BASE_URL = os.getenv("CORALOGIX_REGION")
-HF_API_KEY = os.getenv("HF_API_KEY")
+API_KEY = st.secrets["CORALOGIX_API_KEY"]
+BASE_URL = st.secrets["CORALOGIX_REGION"]
+HF_API_KEY = st.secrets["HF_API_KEY"]
