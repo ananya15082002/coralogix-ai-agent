@@ -5,3 +5,5 @@ openai
 transformers
 scikit-learn
 sentencepiece==0.1.99
+streamlit-autorefresh
+ndjson

@@ -8,3 +8,4 @@ __pycache__/
 # Ignore venvs if any
 venv/
 
+.streamlit/secrets.toml

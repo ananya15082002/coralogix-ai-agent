@@ -10,13 +10,39 @@ headers = {
     "Content-Type": "application/json"
 }
 
+def extract_summary_stats(df: pd.DataFrame) -> str:
+    summary = []
+
+    if 'severity' in df.columns:
+        severity_counts = df['severity'].value_counts().to_dict()
+        summary.append(f"- Severity distribution: {severity_counts}")
+
+    if 'applicationname' in df.columns:
+        app_counts = df['applicationname'].value_counts().to_dict()
+        summary.append(f"- Log volume by application: {app_counts}")
+
+    if 'message' in df.columns:
+        critical_logs = df[df['severity'].astype(str) == '5']
+        if not critical_logs.empty:
+            summary.append(f"- {len(critical_logs)} critical severity logs detected.")
+            keywords = critical_logs['message'].str.extract(r"(exception|error|failed|OSError|timeout|CRIT)", expand=False).dropna().unique().tolist()
+            if keywords:
+                summary.append(f"- Frequent error keywords: {keywords}")
+
+    if 'trace_id' in df.columns:
+        unique_traces = df['trace_id'].nunique()
+        summary.append(f"- Unique trace IDs: {unique_traces}")
+
+    return "\n".join(summary)
+
 def format_prompt(user_question, df: pd.DataFrame) -> str:
-    preview = df.head(5).to_json(orient="records", indent=2)
+    stats_summary = extract_summary_stats(df)
     prompt = (
-        f"You are an AI assistant for log analysis. Analyze the following logs:\n\n"
-        f"{preview}\n\n"
-        f"User's Question: {user_question}\n\n"
-        f"Give a short analysis with insights or issues identified in the logs."
+        f"You are an expert AI assistant helping developers to debug logs.\n"
+        f"Here’s a  summary of the current logs with all stats:\n"
+        f"{stats_summary}\n\n"
+        f"The user asked: '{user_question}'\n\n"
+        f"Based on the overall log patterns and metadata, provide a professional log analysis and suggest any root causes or action items without repeating raw log data."
     )
     return prompt
 
@@ -25,7 +51,7 @@ def query_llm(user_input, df: pd.DataFrame) -> str:
         prompt = format_prompt(user_input, df)
         payload = {
             "inputs": prompt,
-            "parameters": {"max_new_tokens": 300}
+            "parameters": {"max_new_tokens": 350}
         }
         response = requests.post(API_URL, headers=headers, json=payload)
 
